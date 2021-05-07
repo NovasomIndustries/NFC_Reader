@@ -33,6 +33,7 @@ extern "C" {
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "pn532_driver.h"
+#include "NFC_EncDec.h"
 #include "logger.h"
 
 /* USER CODE END Includes */

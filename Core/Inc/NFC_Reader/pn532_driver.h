@@ -13,9 +13,12 @@ extern	SPI_HandleTypeDef 	hspi1;
 extern	TIM_HandleTypeDef 	htim6;
 extern	UART_HandleTypeDef 	huart2;
 
+extern	uint8_t	uid[16],uidLength;
+
 #define SPI_TIMEOUT		30
-#define BUF_SIZE		32
+#define BUF_SIZE		64
 #define UID_LEN			12
+#define CARD1_ID		1
 
 #define	PN532_PREAMBLE		0x00
 #define	PN532_STARTCODE1	0x00
@@ -29,8 +32,8 @@ extern	UART_HandleTypeDef 	huart2;
 #define	PN532_COMMAND_INLISTPASSIVETARGET   0x4A
 #define	PN532_COMMAND_SAMCONFIGURATION		0x14
 #define	PN532_COMMAND_INAUTOPOLL			0x60
-#define	PN532_SPI_DATAWRITE	0x01
-#define	PN532_SPI_DATAREAD	0x03
+#define	PN532_SPI_DATAWRITE					0x01
+#define	PN532_SPI_DATAREAD					0x03
 
 #define	PN532_COMMAND_INDATAEXCHANGE		0x40
 #define	PN532_RESPONSE_INDATAEXCHANGE		0x41
@@ -40,11 +43,17 @@ extern	UART_HandleTypeDef 	huart2;
 #define	TAG_TIMEOUT							2
 #define	TAG_AUTHENTICATION_FAILED			3
 #define	TAG_INVALID							4
-#define	TAG_PAGE_SIZE						16
+#define	MIFARE_CLASSIC_PAGE_SIZE			16
+#define	MIFARE_ULTRALIGHT_PAGE_SIZE			4
 
 // Mifare Commands and replies
 #define	MIFARE_RESPONSE_AUTHORIZED			0x00
 #define	PN532_MIFARE_ISO14443A				0x00
+#define	MIFARE_UID_LEN						0x04
+#define	MIFARE_ULTRALIGHT_UID_LEN			0x07
+
+#define	MIFARE_AUTHENTICATED				0x00
+#define	MIFARE_NOT_AUTHENTICATED			0x01
 
 #define MIFARE_CMD_AUTH_A                   0x60
 #define MIFARE_CMD_AUTH_B                   0x61
@@ -54,6 +63,7 @@ extern	UART_HandleTypeDef 	huart2;
 #define MIFARE_CMD_DECREMENT                0xC0
 #define MIFARE_CMD_INCREMENT                0xC1
 #define MIFARE_CMD_STORE                    0xC2
+#define MIFARE_ULTRALIGHT_CMD_READ          0x30
 #define MIFARE_ULTRALIGHT_CMD_WRITE         0xA2
 
 

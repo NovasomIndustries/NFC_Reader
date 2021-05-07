@@ -203,8 +203,10 @@ uint8_t checkCardPresence(void)
 
 uint8_t authenticate(uint8_t card_number, uint8_t page)
 {
-uint8_t	tbuff[32];
+uint8_t	tbuff[32],i;
 
+	if ( uidLength != MIFARE_UID_LEN)
+		return MIFARE_AUTHENTICATED;
 	tbuff[0]  = PN532_COMMAND_INDATAEXCHANGE;
 	tbuff[1]  = card_number;	// card number
 	tbuff[2]  = MIFARE_CMD_AUTH_A;
@@ -215,13 +217,11 @@ uint8_t	tbuff[32];
 	tbuff[7]  = authenticate_A[3];
 	tbuff[8]  = authenticate_A[4];
 	tbuff[9]  = authenticate_A[5];
-	tbuff[10] = uid[0];
-	tbuff[11] = uid[1];
-	tbuff[12] = uid[2];
-	tbuff[13] = uid[3];
-	if (writeCommand(tbuff, 14, SPI_TIMEOUT))
-		return 1;  // no cards read
-	return 0;
+	for(i=0;i<uidLength;i++)
+		tbuff[10+i] = uid[i];
+	if (writeCommand(tbuff, 10+uidLength, SPI_TIMEOUT))
+		return MIFARE_NOT_AUTHENTICATED;  // no cards read
+	return MIFARE_AUTHENTICATED;
 }
 
 uint8_t authenticateAndRead(uint8_t card_number, uint8_t page, uint8_t *buffer)
@@ -229,18 +229,32 @@ uint8_t authenticateAndRead(uint8_t card_number, uint8_t page, uint8_t *buffer)
 uint8_t	tbuff[32];
 uint8_t	i;
 
-	if ( authenticate(card_number , page) )
-		return TAG_INVALID;
-	if ( strncmp((char *)authenticated_buf,(char *)&rx_buff[6],3) == 0 )
+	if ( uidLength == MIFARE_UID_LEN)
+	{
+		if ( authenticate(card_number , page) )
+			return TAG_INVALID;
+		if ( strncmp((char *)authenticated_buf,(char *)&rx_buff[6],3) == 0 )
+		{
+			tbuff[0]  = PN532_COMMAND_INDATAEXCHANGE;
+			tbuff[1]  = card_number;	// card number
+			tbuff[2]  = MIFARE_CMD_READ;
+			tbuff[3]  = page;	// page
+			if (writeCommand(tbuff, 4, SPI_TIMEOUT))
+				return TAG_ERROR;
+			for(i=0;i<MIFARE_CLASSIC_PAGE_SIZE;i++)
+				buffer[i] = rx_buff[i+9];
+			return TAG_ACCESS_OK;
+		}
+	}
+	if ( uidLength == MIFARE_ULTRALIGHT_UID_LEN)
 	{
 		tbuff[0]  = PN532_COMMAND_INDATAEXCHANGE;
 		tbuff[1]  = card_number;	// card number
-		tbuff[2]  = MIFARE_CMD_READ;
-		tbuff[3]  = page;	// page
+		tbuff[2]  = MIFARE_ULTRALIGHT_CMD_READ;
+		tbuff[3]  = page*4;	// page
 		if (writeCommand(tbuff, 4, SPI_TIMEOUT))
 			return TAG_ERROR;
-
-		for(i=0;i<TAG_PAGE_SIZE;i++)
+		for(i=0;i<MIFARE_CLASSIC_PAGE_SIZE;i++)
 			buffer[i] = rx_buff[i+9];
 		return TAG_ACCESS_OK;
 	}
@@ -249,20 +263,39 @@ uint8_t	i;
 
 uint8_t authenticateAndWrite(uint8_t card_number, uint8_t page, uint8_t *buffer)
 {
-uint8_t	tbuff[32],i;
+uint8_t	tbuff[32],i, ipage=0;
 
-	if ( authenticate(card_number , page) )
-		return TAG_INVALID;
-	if ( strncmp((char *)authenticated_buf,(char *)&rx_buff[6],3) == 0 )
+
+	if ( uidLength == MIFARE_UID_LEN)
 	{
-		tbuff[0]  = PN532_COMMAND_INDATAEXCHANGE;
-		tbuff[1]  = card_number;
-		tbuff[2]  = MIFARE_CMD_WRITE;
-		tbuff[3]  = page;
-		for ( i=0;i<16;i++)
-			tbuff[i+4] = buffer[i];
-		if (writeCommand(tbuff, 20, SPI_TIMEOUT))
-			return TAG_ERROR;
+		if ( authenticate(card_number , page) )
+			return TAG_INVALID;
+		if ( strncmp((char *)authenticated_buf,(char *)&rx_buff[6],3) == 0 )
+		{
+			tbuff[0]  = PN532_COMMAND_INDATAEXCHANGE;
+			tbuff[1]  = card_number;
+			tbuff[2]  = MIFARE_CMD_WRITE;
+			tbuff[3]  = page;
+			for ( i=0;i<MIFARE_CLASSIC_PAGE_SIZE;i++)
+				tbuff[i+4] = buffer[i];
+			if (writeCommand(tbuff, MIFARE_CLASSIC_PAGE_SIZE+4, SPI_TIMEOUT))
+				return TAG_ERROR;
+			return TAG_ACCESS_OK;
+		}
+	}
+	if ( uidLength == MIFARE_ULTRALIGHT_UID_LEN)
+	{
+		for(ipage=0;ipage<4;ipage++)
+		{
+			tbuff[0]  = PN532_COMMAND_INDATAEXCHANGE;
+			tbuff[1]  = card_number;
+			tbuff[2]  = MIFARE_ULTRALIGHT_CMD_WRITE;
+			tbuff[3]  = (page*4)+ipage;
+			for ( i=0;i<MIFARE_ULTRALIGHT_PAGE_SIZE;i++)
+				tbuff[i+4] = buffer[i];
+			if (writeCommand(tbuff, MIFARE_ULTRALIGHT_PAGE_SIZE+4, SPI_TIMEOUT))
+				return TAG_ERROR;
+		}
 		return TAG_ACCESS_OK;
 	}
 	return TAG_AUTHENTICATION_FAILED;
@@ -270,15 +303,23 @@ uint8_t	tbuff[32],i;
 
 void dump_TAGinfo(uint8_t card_number)
 {
-	logUsart("TAG : %d\r\n",card_number);
-	logUsart("UID : 0x%02x 0x%02x 0x%02x 0x%02x\r\n",uid[0],uid[1],uid[2],uid[3]);
+	if ( uidLength == MIFARE_UID_LEN)
+	{
+		logUsart("MiFare Classic TAG : %d\r\n",card_number);
+		logUsart("UID : 0x%02x 0x%02x 0x%02x 0x%02x\r\n",uid[0],uid[1],uid[2],uid[3]);
+	}
+	if ( uidLength == MIFARE_ULTRALIGHT_UID_LEN)
+	{
+		logUsart("MiFare UltraLight TAG : %d\r\n",card_number);
+		logUsart("UID : 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x\r\n",uid[0],uid[1],uid[2],uid[3],uid[4],uid[5],uid[6]);
+	}
 }
 
 void dump_buffer(uint8_t page,uint8_t *buffer)
 {
 uint8_t	i;
 	logUsart("%02x : ", page);
-	for(i=0;i<TAG_PAGE_SIZE;i++)
+	for(i=0;i<MIFARE_CLASSIC_PAGE_SIZE;i++)
 	{
 		logUsart("%02x ", buffer[i]);
 	}
@@ -291,9 +332,22 @@ uint8_t page,buffer[16];
 
 	for(page=0;page<16;page++)
 	{
-		authenticateAndRead(1, page, buffer);
+		authenticateAndRead(CARD1_ID, page, buffer);
 		dump_buffer(page,buffer);
 	}
 
+}
+
+void dump_0456_card(void)
+{
+uint8_t buffer[16];
+	authenticateAndRead(CARD1_ID, NFC_0BUFBLK, buffer);
+	dump_buffer(NFC_0BUFBLK,buffer);
+	authenticateAndRead(CARD1_ID, NFC_1STBUFBLK, buffer);
+	dump_buffer(NFC_1STBUFBLK,buffer);
+	authenticateAndRead(CARD1_ID, NFC_2NDBUFBLK, buffer);
+	dump_buffer(NFC_2NDBUFBLK,buffer);
+	authenticateAndRead(CARD1_ID, NFC_3RDBUFBLK, buffer);
+	dump_buffer(NFC_3RDBUFBLK,buffer);
 }
 

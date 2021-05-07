@@ -76,8 +76,8 @@ int main(void)
 {
   /* USER CODE BEGIN 1 */
 uint8_t		version,writestat=0,i;
-uint8_t		buffer[16],tbuffer[16];
-uint8_t 	card_number = 1, page = 4;
+uint8_t		buffer[16];
+uint8_t 	card_number = 1, tries = 6;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -105,11 +105,7 @@ uint8_t 	card_number = 1, page = 4;
   /* USER CODE BEGIN 2 */
 
   version = initializePN532();
-  for(i=0;i<16;i++)
-  {
-		tbuffer[i] = 0xfe - i;
-		buffer[i] = 0;
-  }
+
 
   /* USER CODE END 2 */
   /* Infinite loop */
@@ -121,19 +117,20 @@ uint8_t 	card_number = 1, page = 4;
 				if ( checkCardPresence() == 0 )
 				{
 					dump_TAGinfo(card_number);
-					for(i=0;i<16;i++)
-						buffer[i] = 0;
-					authenticateAndRead (card_number , page, buffer);
 					if (writestat == 0)
 					{
-						authenticateAndWrite(card_number , page, tbuffer);
-						for(i=0;i<16;i++)
-							buffer[i] = 0;
-						authenticateAndRead (card_number , page, buffer);
+						encode_and_write(2);
 						writestat++;
 					}
-					//dump_buffer(page, buffer);
-					dump_card();
+					for ( tries = 0;tries < 3 ; tries ++)
+					{
+						if ( decode(tries) != 255 )
+							logUsart("Decode %d OK\r\n",tries);
+						else
+							logUsart("Decode %d FAIL\r\n",tries);
+					}
+
+					dump_0456_card();
 				}
 				else
 					logUsart(".");
